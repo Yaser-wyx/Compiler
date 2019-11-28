@@ -1,0 +1,13 @@
+cmake_minimum_required(VERSION 3.15)
+project(complier C)
+
+include_directories(include)
+set(CMAKE_C_STANDARD 99)
+aux_source_directory(vm srcList)
+aux_source_directory(include includeList)
+aux_source_directory(utils utilsList)
+aux_source_directory(parser parserList)
+add_executable(complier ${srcList} ${includeList} ${utilsList} ${parserList})
+
+project(test)
+add_executable(test main.c)
