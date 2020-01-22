@@ -9,7 +9,7 @@
 
 char *rootDir = null;
 
-//read the data from file
+//read the source code from file
 char *readFile(const char *path) {
     FILE *file = fopen(path, "r");//open the file
     if (isNull(file)) {

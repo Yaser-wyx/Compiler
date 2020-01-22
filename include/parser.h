@@ -7,7 +7,7 @@
 
 #include "common.h"
 #include "vm.h"
-
+#define resetCurTokenStart parser->curToken.start = parser->nextCharPtr - 1
 typedef enum {
     TOKEN_UNKNOWN,
     // 数据类型
