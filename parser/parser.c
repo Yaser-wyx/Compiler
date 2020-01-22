@@ -79,7 +79,7 @@ static void skipSpace(Parser *parser) {
         getNextChar(parser);
     }
 }
-
+bool isLegalSymbol(const char c);
 inline bool isLegalSymbol(const char c) {
     return isalnum(c) || c == '_';
 }

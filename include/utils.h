@@ -6,7 +6,6 @@
 void *memManager(VM *vm, void *ptr, uint32_t oldSize, uint32_t newSize);
 
 #define isNull(testObj) testObj == null
-uint32_t bin2dec(char *bin);
 
 #define ALLOCATE(vmPtr, type) \
    (type*)memManager(vmPtr, NULL, 0, sizeof(type))

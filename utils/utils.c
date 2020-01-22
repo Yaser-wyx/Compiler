@@ -10,7 +10,7 @@
 //   1 申请内存
 //   2 修改空间大小
 //   3 释放内存
-void *menManager(VM *vm, void *ptr, size_t oldSize, size_t newSize) {
+void *memManager(VM *vm, void *ptr, uint32_t oldSize, uint32_t newSize) {
     vm->allocatedBytes += (newSize - oldSize);
     if (newSize == 0) {
         free(ptr);
@@ -76,16 +76,3 @@ void errorReport(void *parser, ErrorType errorType, const char *fmt, ...) {
     exit(1);
 }
 
-//二进制转十进制
-uint32_t bin2dec(char *bin) {
-    int len = strlen(bin) - 1;
-    int index = 0;
-    uint32_t value = 0;
-    while (index < len) {
-        if (bin[index] == '1') {
-            value += pow(2, len - index);
-        }
-        index++;
-    }
-    return value;
-}

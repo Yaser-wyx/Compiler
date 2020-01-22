@@ -2,7 +2,7 @@
 #
 # Build and run:
 #   docker build -t clion/remote-cpp-env:0.5 -f Dockerfile.remote-cpp-env .
-#   docker run -d --cap-add sys_ptrace -p127.0.0.1:2222:22 --name clion_remote_env clion/remote-cpp-env:0.5
+#   docker run -d --cap-add sys_ptrace -p127.0.0.1:2222:22 --name clion_remote_env clion/remote-cpp-env:0.5 /bin/bash
 #   ssh-keygen -f "$HOME/.ssh/known_hosts" -R "[localhost]:2222"
 #
 # stop:
@@ -20,7 +20,6 @@ RUN apt-get update \
       gdb \
       clang \
       cmake \
-
   && apt-get clean
 
 RUN ( \
@@ -35,3 +34,4 @@ RUN useradd -m user \
   && yes password | passwd user
 
 CMD ["/usr/sbin/sshd", "-D", "-e", "-f", "/etc/ssh/sshd_config_test_clion"]
+
