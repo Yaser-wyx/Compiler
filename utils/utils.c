@@ -2,6 +2,7 @@
 #include "vm.h"
 #include "parser.h"
 #include <stdlib.h>
+#include <string.h>
 #include <stdarg.h>
 #include <math.h>
 
@@ -9,16 +10,12 @@
 //   1 申请内存
 //   2 修改空间大小
 //   3 释放内存
-void *memManager(VM *vm, void *ptr, uint32_t oldSize, uint32_t newSize) {
-    //累计系统分配的总内存
-    vm->allocatedBytes += newSize - oldSize;
-
-    //避免realloc(NULL, 0)定义的新地址,此地址不能被释放
+void *menManager(VM *vm, void *ptr, size_t oldSize, size_t newSize) {
+    vm->allocatedBytes += (newSize - oldSize);
     if (newSize == 0) {
         free(ptr);
         return NULL;
     }
-
     return realloc(ptr, newSize);
 }
 
@@ -27,7 +24,7 @@ uint32_t ceilToPowerOf2(uint32_t v) {
     //思想：在二进制层面上，把V最高位后面的0全部变成1，再加1，就是大于等于v最近的2次幂
     v += (v == 0);  //修复当v等于0时结果为0的边界情况
     v--;
-    for (int i = 1; i <= 16; i *= 2) {
+    for (int i = 1; i <= 16; i <<= 1) {
         v |= v >> i;
     }
     v++;

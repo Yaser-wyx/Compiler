@@ -3,16 +3,17 @@
 //
 #include "vm.h"
 #include <stdlib.h>
-#include <utils.h>
+#include "utils.h"
 
 void initVM(VM *vm) {
     vm->allocatedBytes = 0;
-    vm->curParser = NULL;
+    vm->curParser = null;
 }
 
 VM *newVM() {
     VM *vm = (VM *) malloc(sizeof(VM));
-    if (vm == NULL) {
+    if (isNull(vm)) {
+        //if vm is null,report memory error
         MEM_ERROR("allocate VM failed!");
     }
     initVM(vm);

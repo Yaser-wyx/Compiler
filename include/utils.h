@@ -5,6 +5,7 @@
 
 void *memManager(VM *vm, void *ptr, uint32_t oldSize, uint32_t newSize);
 
+#define isNull(testObj) testObj == null
 uint32_t bin2dec(char *bin);
 
 #define ALLOCATE(vmPtr, type) \
@@ -41,7 +42,7 @@ typedef struct {
       type* datas;\
       /*缓冲区中已使用的元素个数*/\
       uint32_t count;\
-      /*缓冲区容量用*/\
+      /*缓冲区容量*/\
       uint32_t capacity;\
    } type##Buffer;\
    void type##BufferInit(type##Buffer* buf);\

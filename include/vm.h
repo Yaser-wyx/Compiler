@@ -2,8 +2,8 @@
 // Created by wanyu on 2019/10/29.
 //
 
-#ifndef COMPLIER_VM_H
-#define COMPLIER_VM_H
+#ifndef _VM_VM_H
+#define _VM_VM_H
 
 #include "common.h"
 
@@ -16,4 +16,4 @@ void initVM(VM *);
 
 VM *newVM(void);
 
-#endif //COMPLIER_VM_H
+#endif //_VM_VM_H

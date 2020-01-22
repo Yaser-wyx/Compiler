@@ -9,5 +9,4 @@ aux_source_directory(utils utilsList)
 aux_source_directory(parser parserList)
 add_executable(complier ${srcList} ${includeList} ${utilsList} ${parserList})
 
-project(test)
-add_executable(test main.c)
+

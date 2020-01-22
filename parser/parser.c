@@ -11,14 +11,13 @@
 #include <string.h>
 #include <ctype.h>
 
-//关键字结构
 struct keywordToken {
-    char *keyword;//关键字
-    uint8_t length;//关键字长度
-    TokenType token;//关键字token类型
+    char *keyword;
+    uint32_t length;
+    TokenType tokenType;
 };
-//关键字查找表
-struct keywordToken keywordsToken[] = {
+
+struct keywordToken keywordTokenTable[] = {
         {"var",      3, TOKEN_VAR},
         {"fun",      3, TOKEN_FUN},
         {"if",       2, TOKEN_IF},
@@ -40,41 +39,40 @@ struct keywordToken keywordsToken[] = {
         {NULL,       0, TOKEN_UNKNOWN}
 };
 
-//判断以start为起始的字符串是否为关键字，并返回相应的token
+//parse the word which in start, if is the keyword then return the corresponding token, otherwise return TOKEN_ID.
 static TokenType idOrKeyword(const char *start, uint32_t length) {
-    for (int index = 0; index < len(keywordsToken); ++index) {
-        if (keywordsToken[index].length == length) {
-            if (strcmp(keywordsToken[index].keyword, start)) {
-                return keywordsToken[index].token;
+    for (int i = 0; i < len(keywordTokenTable); ++i) {
+        if (keywordTokenTable[i].length == length) {
+            if (memcmp(keywordTokenTable[i].keyword, start, length) == 0) {
+                return keywordTokenTable[i].tokenType;
             }
         }
     }
-    return TOKEN_ID;//如果不是关键字，怎返回该字符串是变量
+    return TOKEN_ID;
 }
 
-//读入下一个字符
-inline char lookAheadChar(Parser *parser) {
+//let parser look ahead a char.
+char lookAheadChar(Parser *parser) {
     return *parser->nextCharPtr;
 }
 
-//将当前字符改为下一个字符
-inline void getNextChar(Parser *parser) {
-    parser->curChar = *parser->nextCharPtr++;
+
+static void getNextChar(Parser *parser) {
+    parser->curChar = *parser->nextCharPtr;
+    parser->nextCharPtr++;
 }
 
-//查看下一个字符是否是期望的字符，如果是，则读取，并返回true
-static bool matchNextChar(Parser *parser, char expectedChar) {
-    if (lookAheadChar(parser) == expectedChar) {
-        //符合预期
+static bool matchNextChar(Parser *parser, char expChar) {
+    if (lookAheadChar(parser) == expChar) {
         getNextChar(parser);
         return true;
     }
     return false;
 }
 
-//跳过连续的空白
-static void skipBlanks(Parser *parser) {
+static void skipSpace(Parser *parser) {
     while (isspace(parser->curChar)) {
+        //todo test \n
         if (parser->curChar == '\n') {
             parser->curToken.lineNo++;
         }
@@ -82,81 +80,77 @@ static void skipBlanks(Parser *parser) {
     }
 }
 
-//解析标识符
-static void parseId(Parser *parser, TokenType type) {
-    while (isalnum(parser->curChar) || parser->curChar == '_') {
-        //连续读入多个字符
-        getNextChar(parser);
-    }
-    size_t len = parser->nextCharPtr - parser->curToken.start - 1;
-    if (type == TOKEN_UNKNOWN) {
-        parser->curToken.type = idOrKeyword(parser->curToken.start, len);
-    } else {
-        parser->curToken.type = type;
-    }
-    parser->curToken.length = len;
+inline bool isLegalSymbol(const char c) {
+    return isalnum(c) || c == '_';
 }
 
-//解析unicode码点
-static void parseUnicodeCodePoint(Parser *parser, ByteBuffer *buf) {
-    uint32_t idx = 0;
-    int value = 0;
-    uint8_t digit = 0;
+//read the whole symbol, determine its length and type
+static void parseId(Parser *parser, TokenType type) {
+    while (isLegalSymbol(parser->curChar)) {
+        //if is legal, then get next char;
+        getNextChar(parser);
+    }
+    Token *curToken = &parser->curToken;
+    uint32_t length = curToken->length = (parser->nextCharPtr - curToken->start - 1);//set the symbol length
+    if (type == TOKEN_UNKNOWN) {
+        //if unknown, then identify its type
+        type = idOrKeyword(curToken->start, length);
+    }
+    curToken->type = type;
+}
 
-//获取数值,u后面跟着4位十六进制数字
-    while (idx++ < 4) {
+//parse the unicode code point, and transform this to utf-8, then write the parsed value to buffer
+static void parserUnicodeCodePoint(Parser *parser, ByteBuffer *buffer) {
+    int index = 0;
+    int digital = 0;
+    int value = 0;
+    while (index++ < 4) {
+        //the length of code point is less than 4
         getNextChar(parser);
         if (parser->curChar == '\0') {
             LEX_ERROR(parser, "unterminated unicode!");
         }
         if (parser->curChar >= '0' && parser->curChar <= '9') {
-            digit = parser->curChar - '0';
+            digital = parser->curChar - '0';
         } else if (parser->curChar >= 'a' && parser->curChar <= 'f') {
-            digit = parser->curChar - 'a' + 10;
+            digital = parser->curChar - 'a' + 10;
         } else if (parser->curChar >= 'A' && parser->curChar <= 'F') {
-            digit = parser->curChar - 'A' + 10;
-        } else {
-            LEX_ERROR(parser, "invalid unicode!");
+            digital = parser->curChar - 'A' + 10;
         }
-        value = value * 16 | digit;
+        value = value * 16 | digital;
     }
-
     uint32_t byteNum = getByteNumOfEncodeUtf8(value);
-    ASSERT(byteNum != 0, "utf8 encode bytes should be between 1 and 4!");
-
-    //为代码通用, 下面会直接写buf->datas,在此先写入byteNum个0,以保证事先有byteNum个空间
-    ByteBufferFillWrite(parser->vm, buf, 0, byteNum);
-
-    //把value编码为utf8后写入缓冲区buf
-    encodeUtf8(buf->datas + buf->count - byteNum, value);
+    ASSERT(byteNum != 0, "utf8 code bytes should be between 1 and 4!");
+    ByteBufferFillWrite(parser->vm, buffer, 0, byteNum);
+    encodeUtf8(buffer->datas + buffer->count - byteNum, value);
 }
 
-//解析字符串
-static void parseString(Parser *parser) {
+static void parserString(Parser *parser) {
     ByteBuffer buffer;
     ByteBufferInit(&buffer);
     while (true) {
         getNextChar(parser);
         if (parser->curChar == '\0') {
-            LEX_ERROR(parser, "unterminated string!");
+            LEX_ERROR(parser, "unterminated String");
+            break;
         }
         if (parser->curChar == '"') {
             parser->curToken.type = TOKEN_STRING;
             break;
         }
         if (parser->curChar == '%') {
-            if (!matchToken(parser, '(')) {
-                LEX_ERROR(parser, "'%' should followed by '('!");
+            if (!matchNextChar(parser, '(')) {
+                LEX_ERROR(parser, "In string, '%' must followed by '('!");
             }
-            if (parser->interpolationExpectRightParenNum > 0) {
-                COMPILE_ERROR(parser, "sorry, I don`t support nest interpolate expression!");
+            if (parser->interpolationExpRightParenNum != 0) {
+                COMPILE_ERROR(parser, "sorry we don't support nest interpolate expression!");
             }
+            parser->interpolationExpRightParenNum = 1;
             parser->curToken.type = TOKEN_INTERPOLATION;
-            parser->interpolationExpectRightParenNum = 1;
             break;
         }
+        //handle ESC
         if (parser->curChar == '\\') {
-            //处理转义字符
             getNextChar(parser);
             switch (parser->curChar) {
                 case '0':
@@ -180,36 +174,66 @@ static void parseString(Parser *parser) {
                 case 't':
                     ByteBufferAdd(parser->vm, &buffer, '\t');
                     break;
+                case '\\':
+                    ByteBufferAdd(parser->vm, &buffer, '\\');
+                    break;
                 case 'u':
-                    parseUnicodeCodePoint(parser, &buffer);
+                    parserUnicodeCodePoint(parser, &buffer);
                     break;
                 case '"':
                     ByteBufferAdd(parser->vm, &buffer, '"');
                     break;
-                case '\\':
-                    ByteBufferAdd(parser->vm, &buffer, '\\');
-                    break;
                 default:
-                    LEX_ERROR(parser, "unsupport escape \\%c", parser->curChar);
+                    LEX_ERROR(parser, "unSupport ESC \\%c", parser->curChar);
                     break;
             }
         } else {
+            //normal string
             ByteBufferAdd(parser->vm, &buffer, parser->curChar);
         }
     }
+    //clear buffer.
     ByteBufferClear(parser->vm, &buffer);
 }
 
 static void skipAline(Parser *parser) {
-    getNextChar(parser);
     while (parser->curChar != '\0') {
         if (parser->curChar == '\n') {
-            parser->curToken.lineNo++;
             getNextChar(parser);
+            parser->curToken.lineNo++;
             break;
+        } else {
+            getNextChar(parser);
         }
-        getNextChar(parser);
     }
 }
 
-
+static void skipComment(Parser *parser) {
+    getNextChar(parser);
+    char nextChar = lookAheadChar(parser);
+    if (parser->curChar == '/') {
+        //line comment
+        skipAline(parser);
+        goto clean_space;
+    } else {
+        //block comment
+        while (nextChar != '\0') {
+            //match the '*/' until the end of file.
+            getNextChar(parser);
+            if (parser->curChar == '\n') {
+                parser->curToken.lineNo++;
+            } else if (parser->curChar == '*') {
+                //match next char, if next char is '/', then return, otherwise continue match the rest of file.
+                if (matchNextChar(parser, '/')) {
+                    goto clean_space;
+                }
+            }
+            nextChar = lookAheadChar(parser);//update nextChar
+        }
+        //if not match the '*/' in file, then report the lex error.
+        LEX_ERROR(parser, "expect '*/' before file end!");
+    }
+    //maybe there's a blank after the comment
+    clean_space:
+    skipSpace(parser);
+}

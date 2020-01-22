@@ -95,24 +95,25 @@ typedef enum {
 
     TOKEN_EOF           //'EOF'
 } TokenType;
+
 typedef struct {
     TokenType type;
-    const char *start;
-    uint32_t length;
+    const char *start;//the start of token in code
+    uint32_t length;//the length of the token
     uint32_t lineNo;
 } Token;
 
 struct parser {
-    const char *file;//源代码文件
-    const char *sourceCode;//指向源码缓冲区
-    const char *nextCharPtr;//下一个字符
-    char curChar;//当前识别的字符
-    Token curToken;//当前的token
-    Token perToken;//前一个token
-    //跟踪内嵌表达式中的小括号对数
-    int interpolationExpectRightParenNum;
-    struct parser *parent;//指向父parser
-    VM *vm;//指向所属的VM
+    const char *file;//code file
+    const char *sourceCode;//a pointer to a code buffer
+    const char *nextCharPtr;//a pointer to the next char
+    char curChar;
+    Token curToken;
+    Token preToken;
+
+    int interpolationExpRightParenNum;//the num of right paren in embedded exception
+    struct parser* parent;//point to a father parser
+    VM* vm;//point to the vm
 };
 #define PEEK_TOKEN(parserPtr) parserPtr->curToken.type
 
