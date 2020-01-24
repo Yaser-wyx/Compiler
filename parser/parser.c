@@ -62,6 +62,7 @@ static void getNextChar(Parser *parser) {
     parser->nextCharPtr++;
 }
 
+//match the next char, if match success, then read it and return true, else return false.
 static bool matchNextChar(Parser *parser, char expChar) {
     if (lookAheadChar(parser) == expChar) {
         getNextChar(parser);
@@ -79,7 +80,9 @@ static void skipSpace(Parser *parser) {
         getNextChar(parser);
     }
 }
+
 bool isLegalSymbol(const char c);
+
 inline bool isLegalSymbol(const char c) {
     return isalnum(c) || c == '_';
 }
@@ -126,8 +129,8 @@ static void parserUnicodeCodePoint(Parser *parser, ByteBuffer *buffer) {
 }
 
 static void parseString(Parser *parser) {
-    ByteBuffer buffer;
-    ByteBufferInit(&buffer);
+    ByteBuffer str;
+    ByteBufferInit(&str);
     while (true) {
         getNextChar(parser);
         if (parser->curChar == '\0') {
@@ -154,34 +157,34 @@ static void parseString(Parser *parser) {
             getNextChar(parser);
             switch (parser->curChar) {
                 case '0':
-                    ByteBufferAdd(parser->vm, &buffer, '\0');
+                    ByteBufferAdd(parser->vm, &str, '\0');
                     break;
                 case 'a':
-                    ByteBufferAdd(parser->vm, &buffer, '\a');
+                    ByteBufferAdd(parser->vm, &str, '\a');
                     break;
                 case 'b':
-                    ByteBufferAdd(parser->vm, &buffer, '\b');
+                    ByteBufferAdd(parser->vm, &str, '\b');
                     break;
                 case 'f':
-                    ByteBufferAdd(parser->vm, &buffer, '\f');
+                    ByteBufferAdd(parser->vm, &str, '\f');
                     break;
                 case 'n':
-                    ByteBufferAdd(parser->vm, &buffer, '\n');
+                    ByteBufferAdd(parser->vm, &str, '\n');
                     break;
                 case 'r':
-                    ByteBufferAdd(parser->vm, &buffer, '\r');
+                    ByteBufferAdd(parser->vm, &str, '\r');
                     break;
                 case 't':
-                    ByteBufferAdd(parser->vm, &buffer, '\t');
+                    ByteBufferAdd(parser->vm, &str, '\t');
                     break;
                 case '\\':
-                    ByteBufferAdd(parser->vm, &buffer, '\\');
+                    ByteBufferAdd(parser->vm, &str, '\\');
                     break;
                 case 'u':
-                    parserUnicodeCodePoint(parser, &buffer);
+                    parserUnicodeCodePoint(parser, &str);
                     break;
                 case '"':
-                    ByteBufferAdd(parser->vm, &buffer, '"');
+                    ByteBufferAdd(parser->vm, &str, '"');
                     break;
                 default:
                     LEX_ERROR(parser, "unSupport ESC \\%c", parser->curChar);
@@ -189,11 +192,13 @@ static void parseString(Parser *parser) {
             }
         } else {
             //normal string
-            ByteBufferAdd(parser->vm, &buffer, parser->curChar);
+            ByteBufferAdd(parser->vm, &str, parser->curChar);
         }
     }
-    //clear buffer.
-    ByteBufferClear(parser->vm, &buffer);
+    ObjString *objString = newObjString(parser->vm, (const char *) str.datas, str.count);
+    parser->curToken.value = OBJ_TO_VALUE(objString);
+    //clear str buffer.
+    ByteBufferClear(parser->vm, &str);
 }
 
 static void skipAline(Parser *parser) {
@@ -237,6 +242,57 @@ static void skipComment(Parser *parser) {
     skipSpace(parser);
 }
 
+//parse hex number
+static void parseHexNum(Parser *parser) {
+    while (isxdigit(parser->curChar)) {
+        getNextChar(parser);
+    }
+}
+
+//parse dec number
+static void parseDecNum(Parser *parser) {
+    while (isdigit(parser->curChar)) {
+        getNextChar(parser);
+    }
+
+    if (parser->curChar == '.' && isdigit(lookAheadChar(parser))) {
+        getNextChar(parser);
+        while (isdigit(parser->curChar)) {
+            getNextChar(parser);
+        }
+    }
+}
+
+//parse oct number
+static void parseOctNum(Parser *parser) {
+    while (parser->curChar >= '0' && parser->curChar < '8') {
+        getNextChar(parser);
+    }
+}
+
+//parse number, include hex, dec and oct number.
+//only support for the prefix, not support for the suffix
+static void parseNum(Parser *parser) {
+    if (parser->curChar == '0' && matchNextChar(parser, 'x')) {
+        getNextChar(parser);//skip the x.
+        parseHexNum(parser);
+        parser->curToken.value = NUM_TO_VALUE(strtol(parser->curToken.start, null, 16));
+    } else if (parser->curChar == '0') {
+        char next = lookAheadChar(parser);
+        if (next >= '0' && next < '8') {
+            parseOctNum(parser);
+            parser->curToken.value = NUM_TO_VALUE(strtol(parser->curToken.start, null, 8));
+        }
+    } else {
+        parseDecNum(parser);
+        parser->curToken.value = NUM_TO_VALUE(strtod(parser->curToken.start, null));
+    }
+    //now curChar is point to the first invalid char, and the nextCharPtr point to the second, so need minus 1
+    parser->curToken.length = parser->nextCharPtr - parser->curToken.start - 1;
+    parser->curToken.type = TOKEN_NUM;
+}
+
+//only recognize one token, and set the curToken to this.
 void getNextToken(Parser *parser) {
     //set preToken as curToken
     parser->preToken = parser->curToken;
@@ -244,9 +300,10 @@ void getNextToken(Parser *parser) {
     //init curToken
     parser->curToken.type = TOKEN_EOF;
     parser->curToken.length = 0;
+    parser->curToken.value = VT_TO_VALUE(VT_UNDEFINED);
     resetCurTokenStart;
     while (parser->curChar != '\0') {
-        //match curChar
+        //matching curChar, and set curToken type
         switch (parser->curChar) {
             case ',':
                 parser->curToken.type = TOKEN_COMMA;
@@ -367,9 +424,13 @@ void getNextToken(Parser *parser) {
                 parseString(parser);
                 break;
             default:
+                //used to match symbol and number.
                 if (isalpha(parser->curChar) || parser->curChar == '_') {
                     //identify var
                     parseId(parser, TOKEN_UNKNOWN);
+                } else if (isdigit(parser->curChar)) {
+                    //parse digital
+                    parseNum(parser);
                 } else {
                     if (parser->curChar == '#' && matchNextChar(parser, '!')) {
                         skipAline(parser);
@@ -380,8 +441,10 @@ void getNextToken(Parser *parser) {
                 }
                 return;
         }
+        //set length
         parser->curToken.length = (uint32_t) (parser->nextCharPtr - parser->curToken.start);
-        getNextChar(parser);
+        getNextChar(parser);//set curChar to next is in order to the next token recognize.
+        //finish match
         return;
     }
 }
@@ -411,7 +474,8 @@ void consumeNextToken(Parser *parser, TokenType expected, const char *errMsg) {
     }
 }
 
-void initParser(VM *vm, Parser *parser, const char *file, const char *sourceCode) {
+
+void initParser(VM *vm, Parser *parser, const char *file, const char *sourceCode, ObjModule *objModule) {
     parser->file = file;
     parser->sourceCode = sourceCode;
     parser->curChar = *sourceCode;
@@ -423,4 +487,5 @@ void initParser(VM *vm, Parser *parser, const char *file, const char *sourceCode
     parser->interpolationExpRightParenNum = 0;
     parser->vm = vm;
     parser->preToken = parser->curToken;
+    parser->curModule = objModule;
 }

@@ -7,6 +7,8 @@
 
 #include "common.h"
 #include "vm.h"
+#include "class.h"
+
 #define resetCurTokenStart parser->curToken.start = parser->nextCharPtr - 1
 typedef enum {
     TOKEN_UNKNOWN,
@@ -101,6 +103,7 @@ typedef struct {
     const char *start;//the start of token in code
     uint32_t length;//the length of the token
     uint32_t lineNo;
+    Value value; //store the token value
 } Token;
 
 struct parser {
@@ -110,10 +113,10 @@ struct parser {
     char curChar;
     Token curToken;
     Token preToken;
-
+    ObjModule *curModule;//the module which is compiling now.
     int interpolationExpRightParenNum;//the num of right paren in embedded exception
-    struct parser* parent;//point to a father parser
-    VM* vm;//point to the vm
+    struct parser *parent;//point to a father parser
+    VM *vm;//point to the vm
 };
 #define PEEK_TOKEN(parserPtr) parserPtr->curToken.type
 
@@ -131,6 +134,6 @@ uint32_t getByteNumOfEncodeUtf8(int value);
 
 uint8_t encodeUtf8(uint8_t *buf, int value);
 
-void initParser(VM *vm, Parser *parser, const char *file, const char *sourceCode);
+void initParser(VM *vm, Parser *parser, const char *file, const char *sourceCode, ObjModule *objModule);
 
 #endif //TEST_PARSER_H

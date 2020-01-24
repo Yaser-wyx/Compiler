@@ -6,10 +6,16 @@
 #define _VM_VM_H
 
 #include "common.h"
+#include "class.h"
+#include "parser.h"
 
 struct vm {
+    Class *stringClass;
+    Class *fnClass;
+    ObjHeader *allObjects;//obj list
     uint32_t allocatedBytes;
     Parser *curParser;
+
 };
 
 void initVM(VM *);
