@@ -34,10 +34,17 @@ typedef enum {
    value; \
 })
 
+
 #define VALUE_TO_OBJ(value) (value.objHeader)
 #define VALUE_TO_OBJSTR(value) ((ObjString*)VALUE_TO_OBJ(value))
 #define VALUE_TO_OBJFN(value) ((ObjFn*)VALUE_TO_OBJ(value))
+#define VALUE_TO_OBJRANGE(value) ((ObjRange*)VALUE_TO_OBJ(value))
+#define VALUE_TO_OBJINSTANCE(value) ((ObjInstance*)VALUE_TO_OBJ(value))
+#define VALUE_TO_OBJLIST(value) ((ObjList*)VALUE_TO_OBJ(value))
+#define VALUE_TO_OBJMAP(value) ((ObjMap*)VALUE_TO_OBJ(value))
 #define VALUE_TO_OBJCLOSURE(value) ((ObjClosure*)VALUE_TO_OBJ(value))
+#define VALUE_TO_OBJTHREAD(value) ((ObjThread*)VALUE_TO_OBJ(value))
+#define VALUE_TO_OBJMODULE(value) ((ObjModule*)VALUE_TO_OBJ(value))
 #define VALUE_TO_CLASS(value) ((Class*)VALUE_TO_OBJ(value))
 
 #define VALUE_IS_UNDEFINED(value) ((value).type == VT_UNDEFINED)
@@ -53,6 +60,7 @@ typedef enum {
 #define VALUE_IS_OBJRANGE(value) (VALUE_IS_CERTAIN_OBJ(value, OT_RANGE))
 #define VALUE_IS_CLASS(value) (VALUE_IS_CERTAIN_OBJ(value, OT_CLASS))
 #define VALUE_IS_0(value) (VALUE_IS_NUM(value) && (value).num == 0)
+
 
 //primitive method pointer
 typedef bool (*Primitive)(VM *vm, Value *args);
@@ -81,6 +89,9 @@ typedef union {
     uint32_t bits32[2];
     double num;
 } Bits64;
+
+bool valueIsEqual(Value a, Value b);
+
 #define CAPACITY_GROW_FACTOR 4
 #define MIN_CAPACITY 64
 #endif //SPR_CLASS_H

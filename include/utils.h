@@ -22,6 +22,7 @@ void *memManager(VM *vm, void *ptr, uint32_t oldSize, uint32_t newSize);
 #define DEALLOCATE(vmPtr, memPtr) memManager(vmPtr, memPtr, 0, 0)
 
 #define len(array) sizeof(array)/sizeof(array[0])
+
 uint32_t ceilToPowerOf2(uint32_t v);
 
 typedef struct {
@@ -61,16 +62,16 @@ typedef struct {
      type##Buffer* buf, type data, uint32_t fillCount) {\
       uint32_t newCounts = buf->count + fillCount;\
       if (newCounts > buf->capacity) {\
-     size_t oldSize = buf->capacity * sizeof(type);\
-     buf->capacity = ceilToPowerOf2(newCounts);\
-     size_t newSize = buf->capacity * sizeof(type);\
-     ASSERT(newSize > oldSize, "faint...memory allocate!");\
-     buf->datas = (type*)memManager(vm, buf->datas, oldSize, newSize);\
+         size_t oldSize = buf->capacity * sizeof(type);\
+         buf->capacity = ceilToPowerOf2(newCounts);\
+         size_t newSize = buf->capacity * sizeof(type);\
+         ASSERT(newSize > oldSize, "faint...memory allocate!");\
+         buf->datas = (type*)memManager(vm, buf->datas, oldSize, newSize);\
       }\
       uint32_t cnt = 0;\
       while (cnt < fillCount) {\
-     buf->datas[buf->count++] = data;\
-     cnt++;\
+         buf->datas[buf->count++] = data;\
+         cnt++;\
       }\
    }\
 \

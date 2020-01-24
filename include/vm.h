@@ -11,7 +11,10 @@
 
 struct vm {
     Class *stringClass;
+    Class *rangeClass;
+    Class *mapClass;
     Class *fnClass;
+    Class *listClass;
     ObjHeader *allObjects;//obj list
     uint32_t allocatedBytes;
     Parser *curParser;
