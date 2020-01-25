@@ -77,3 +77,24 @@ static bool addEntry(Entry *entries, uint32_t capacity, Value key, Value value) 
         index = (index + 1) % capacity;
     }
 }
+
+static void resizeMap(VM *vm, ObjMap *objMap, uint32_t newCapacity) {
+    //create new entries
+    Entry *newEntries = ALLOCATE_ARRAY(vm, Entry, newCapacity);
+    for (int index = 0; index < newCapacity; ++index) {
+        //init
+        newEntries[index].value = VT_TO_VALUE(VT_FALSE);
+        newEntries[index].key = VT_TO_VALUE(VT_UNDEFINED);
+    }
+    //traverse old entries, and cpy these to new one
+    Entry *oldEntries = objMap->entries;
+    int newIndex = 0;
+    for (int index = 0; index < objMap->capacity; ++index) {
+        if (oldEntries[index].key.type != VT_UNDEFINED) {
+            //has value
+            addEntry()
+        }
+    }
+
+
+}
