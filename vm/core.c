@@ -6,8 +6,11 @@
 #include <sys/stat.h>
 #include "utils.h"
 #include "vm.h"
+#include "meta_obj.h"
 
 char *rootDir = null;
+#define CORE_MODULE VT_TO_VALUE(VT_NULL)
+
 
 //read the source code from file
 char *readFile(const char *path) {
@@ -29,4 +32,16 @@ char *readFile(const char *path) {
     fileContent[fileSize] = '\0';//set the last as 0
     fclose(file);//close file
     return fileContent;
+}
+
+VMResult executeModule(VM *vm, Value moduleName, const char *moduleCode) {
+    //todo 站桩函数，目前为空
+    return VM_RESULT_ERROR;
+}
+
+
+void buildCore(VM *vm) {
+    //创建核心模块
+    ObjModule *coreModule = newObjModule(vm, null);
+    mapSet(vm, vm->allModules, CORE_MODULE, OBJ_TO_VALUE(coreModule));
 }

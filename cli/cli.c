@@ -21,24 +21,7 @@ static void runFile(const char *filePath) {
     //create a VM
     VM *vm = newVM();
     const char *sourceCode = readFile(filePath);
-    struct parser parser;
-    initParser(vm, &parser, filePath, sourceCode, null);
-
-#include "token.list"
-    //parse token until the end of file.
-    while (parser.curToken.type != TOKEN_EOF) {
-        //get the next token and print it.
-        getNextToken(&parser);
-        //print the token which just recognized.
-        printf("%dL-tokenArray[%d]: %s [", parser.curToken.lineNo,
-               parser.curToken.type, tokenArray[parser.curToken.type]);
-        uint32_t idx = 0;
-        while (idx < parser.curToken.length) {
-            //print the source code of token
-            printf("%c", *(parser.curToken.start + idx++));
-        }
-        printf("]\n");
-    }
+    executeModule(vm, OBJ_TO_VALUE(newObjString(vm, filePath, strlen(filePath))), sourceCode);
 }
 
 int main(int argc, const char **argv) {

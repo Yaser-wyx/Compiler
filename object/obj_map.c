@@ -88,13 +88,84 @@ static void resizeMap(VM *vm, ObjMap *objMap, uint32_t newCapacity) {
     }
     //traverse old entries, and cpy these to new one
     Entry *oldEntries = objMap->entries;
-    int newIndex = 0;
     for (int index = 0; index < objMap->capacity; ++index) {
         if (oldEntries[index].key.type != VT_UNDEFINED) {
             //has value
-            addEntry()
+            addEntry(newEntries, newCapacity, oldEntries[index].key, oldEntries[index].value);
         }
     }
+    //collect the space of oldEntries array
+    DEALLOCATE_ARRAY(vm, oldEntries, objMap->capacity);
+    objMap->capacity = newCapacity;//update capacity and entries pointer
+    objMap->entries = newEntries;
+}
 
+//find entry in map by key.
+static Entry *findEntry(ObjMap *objMap, Value key) {
+    if (objMap->capacity == 0 || objMap->count == 0) {
+        return null;
+    }
+    Entry *entry;
+    int index = hashValue(key) % objMap->capacity;
+    while (true) {
+        entry = &objMap->entries[index];
+        if (VALUE_IS_UNDEFINED(entry->key) && VALUE_IS_FALSE(entry->value)) {
+            return null;
+        }
+        if (valueIsEqual(key, entry->key)) {
+            return entry;
+        }
+        index = (index + 1) % objMap->capacity;
+    }
+}
 
+void mapSet(VM *vm, ObjMap *objMap, Value key, Value value) {
+    if (objMap->count + 1 > objMap->capacity * MAP_LOAD_PERCENT) {
+        uint32_t newCapacity = objMap->capacity * CAPACITY_GROW_FACTOR;
+        if (newCapacity < MIN_CAPACITY) {
+            newCapacity = MIN_CAPACITY;
+        }
+        resizeMap(vm, objMap, newCapacity);
+    }
+    if (addEntry(objMap->entries, objMap->capacity, key, value)) {
+        objMap->count++;
+    }
+}
+
+//get value by key ->map[key]
+Value mapGet(ObjMap *objMap, Value key) {
+    Entry *entry = findEntry(objMap, key);
+    if (entry == null) {
+        return VT_TO_VALUE(VT_UNDEFINED);
+    }
+    return entry->value;
+}
+
+void clearMap(VM *vm, ObjMap *objMap) {
+    DEALLOCATE_ARRAY(vm, objMap->entries, objMap->capacity);
+    objMap->entries = null;
+    objMap->capacity = objMap->count = 0;
+}
+
+Value removeKey(VM *vm, ObjMap *objMap, Value key) {
+    Entry *entry = findEntry(objMap, key);
+    if (entry == null) {
+        return VT_TO_VALUE(VT_NULL);
+    }
+    Value value = entry->value;
+    entry->key = VT_TO_VALUE(VT_UNDEFINED);
+    entry->value = VT_TO_VALUE(VT_TRUE);//pseudo delete
+    objMap->count--;
+    if (objMap->count == 0) {
+        //there is no element
+        clearMap(vm, objMap);
+    } else if (objMap->count < objMap->capacity / (CAPACITY_GROW_FACTOR * MAP_LOAD_PERCENT) &&
+               objMap->count > MIN_CAPACITY) {
+        uint32_t newCapacity = objMap->capacity / CAPACITY_GROW_FACTOR;
+        if (newCapacity < MIN_CAPACITY) {
+            newCapacity = MIN_CAPACITY;
+        }
+        resizeMap(vm, objMap, newCapacity);
+    }
+    return value;
 }

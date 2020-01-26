@@ -19,4 +19,7 @@ typedef struct {
     //concrete fields
     Value fields[0];
 }ObjInstance;//the instance of Obj
+
+ObjModule* newObjModule(VM* vm, const char* modName);
+ObjInstance* newObjInstance(VM* vm, Class* class);
 #endif //SPR_META_OBJ_H
