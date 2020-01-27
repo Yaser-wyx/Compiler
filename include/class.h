@@ -81,7 +81,7 @@ struct class {
     ObjHeader *objHeader;
     struct class *superClass;
     uint32_t fieldNum;
-    MethodBuffer methods;
+    MethodBuffer methods;//存储方法体数组
     ObjString *name;
 };
 typedef union {

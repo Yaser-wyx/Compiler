@@ -29,7 +29,7 @@ struct vm {
     Class *threadClass;
     ObjHeader *allObjects;//obj list
     uint32_t allocatedBytes;
-    SymbolTable allMethodNames;
+    SymbolTable allMethodNames;//存储全局方法名数组
     ObjMap *allModules;
     ObjThread *curThread;
     Parser *curParser;

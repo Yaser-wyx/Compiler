@@ -11,9 +11,11 @@ set(CMAKE_C_STANDARD 99)
 aux_source_directory(vm srcList)
 aux_source_directory(utils utilsList)
 aux_source_directory(parser parserList)
+aux_source_directory(compiler compilerList)
+
 aux_source_directory(cli cliList)
 aux_source_directory(object objectList)
-add_executable(spr ${srcList} ${utilsList} ${parserList} ${cliList} ${objectList})
+add_executable(spr ${srcList} ${utilsList} ${parserList} ${cliList} ${objectList} ${compilerList})
 
 
 
