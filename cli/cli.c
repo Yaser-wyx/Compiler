@@ -16,7 +16,7 @@ static void runFile(const char *filePath) {
         char *root = (char *) malloc(pathLen + 1);//为路径分配内存
         memcpy(root, filePath, pathLen);//将源码文件路径复制
         root[pathLen] = '\0';//最后一位置0
-        rootDir = root;
+        rootDir = root;//设置虚拟机根路径
     }
     //构建虚拟机
     VM *vm = newVM();

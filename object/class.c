@@ -46,3 +46,32 @@ bool valueIsEqual(Value a, Value b) {
 
     return false;
 }
+
+//新建一个裸类，可认为是所有类的父类
+Class *newRawClass(VM *vm, const char *name, uint32_t fieldNum) {
+    Class *rawClass = ALLOCATE(vm, Class);//分配内存
+    initObjHeader(vm, rawClass->objHeader, OT_CLASS, null);
+    rawClass->name = newObjString(vm, name, strlen(name));
+    rawClass->fieldNum = fieldNum;
+    rawClass->superClass = null;
+    MethodBufferInit(&rawClass->methods);
+    return rawClass;
+}
+
+//通过形参obj来判断该对象的归属类是什么
+inline Class *getClassOfObj(VM *vm, Value obj) {
+    switch (obj.type) {
+        case VT_NULL:
+            return vm->nullClass;
+        case VT_FALSE:
+        case VT_TRUE:
+            return vm->boolClass;
+        case VT_NUM:
+            return vm->numClass;
+        case VT_OBJ:
+            return VALUE_TO_OBJ(obj)->class;
+        default:
+            NOT_REACHED()
+    }
+    return null;
+}

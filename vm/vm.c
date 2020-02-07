@@ -7,12 +7,12 @@
 #include "core.h"
 
 void initVM(VM *vm) {
+    //初始化虚拟机
     vm->allocatedBytes = 0;
     vm->curParser = null;
     vm->allObjects = null;
     StringBufferInit(&vm->allMethodNames);
     vm->allModules = newObjMap(vm);
-    vm->curParser = null;
 }
 
 VM *newVM() {

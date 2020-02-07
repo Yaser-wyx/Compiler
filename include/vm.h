@@ -14,10 +14,11 @@ typedef enum vmResult {
     VM_RESULT_SUCCESS,
     VM_RESULT_ERROR
 } VMResult;//虚拟机执行结果
-//如果执行无误，则将字节码输出到文件进行缓存，避免重复编译
+//如果执行结果为success，则将字节码输出到文件进行缓存，避免重复编译
 struct vm {
+    //内置class类型
     Class *classOfClass;
-    Class *objectClass;
+    Class *objectClass;//所有类的父类
     Class *stringClass;
     Class *mapClass;
     Class *rangeClass;
@@ -27,12 +28,13 @@ struct vm {
     Class *numClass;
     Class *fnClass;
     Class *threadClass;
-    ObjHeader *allObjects;//obj list
-    uint32_t allocatedBytes;
-    SymbolTable allMethodNames;//存储全局方法名数组
-    ObjMap *allModules;
-    ObjThread *curThread;
-    Parser *curParser;
+
+    ObjHeader *allObjects;//所有对象列表
+    uint32_t allocatedBytes;//已分配内存大小
+    SymbolTable allMethodNames;//存储所有方法名的数组，该数组中每一个方法名对应的方法体在指定class中methods的相同索引位置上，是一对一映射关系
+    ObjMap *allModules;//模块hash表
+    ObjThread *curThread;//当前线程
+    Parser *curParser;//当前词法分析器
 
 };
 

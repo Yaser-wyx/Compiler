@@ -28,14 +28,13 @@ typedef struct {
 } Upvalue;//upvalue结构
 
 typedef struct {
+    //只存储局部变量名与所处的作用域，而局部变量值存储在栈中
     const char *name;//局部变量名
     uint32_t length;//变量名长度
-
     int scopeDepth;//所处作用域层次
-
     //表示该局部变量是否被内层函数所引用。
     bool isUpvalue;
-} localVar;
+} localVar;//局部变量结构
 
 typedef enum {
     SIGN_CONSTRUCT,  //构造函数
@@ -74,4 +73,5 @@ typedef struct compileUnit CompileUnit;
 
 int defineModuleVar(VM *vm, ObjModule *objModule, const char *name, uint32_t length, Value value);
 
+ObjFn* compileModule(VM* vm, ObjModule* objModule, const char* moduleCode);
 #endif //TEMP_COMPILER_H

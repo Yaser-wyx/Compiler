@@ -22,11 +22,11 @@ typedef enum {
 } ObjType;
 
 typedef struct objHeader {
-    ObjType type;
-    bool isReachable;//for GC
-    Class *class;//class for object
-    struct objHeader *next;// pointer for
-} ObjHeader;//used to record meta and GC
+    ObjType type;//对象类型
+    bool isReachable;//该对象是否为可达状态，用于GC
+    Class *class;//归属类，用于对象调用类的内部方法
+    struct objHeader *next;//指向下一个对象的对象头
+} ObjHeader;
 
 typedef enum {
     VT_UNDEFINED,
@@ -34,7 +34,7 @@ typedef enum {
     VT_FALSE,
     VT_TRUE,
     VT_NUM,
-    VT_OBJ  //point to ObjHeader
+    VT_OBJ
 } ValueType;
 
 typedef struct {
@@ -43,9 +43,10 @@ typedef struct {
         double num;
         ObjHeader *objHeader;
     };
-} Value;//generic value struct
+} Value;//统一的值结构类型，可以存数值，也可以存对象
 
 DECLARE_BUFFER_TYPE(Value);
 
 void initObjHeader(VM *vm, ObjHeader *objHeader, ObjType objType, Class *class);
+
 #endif //SPR_HEADER_OBJ_H

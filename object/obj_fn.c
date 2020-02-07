@@ -25,12 +25,12 @@ ObjFn *newObjFn(VM *vm, ObjModule *objModule, uint32_t slotNum) {
     return objFn;
 }
 
-//create a closure object for objFn
+//将方法对象封装为closure对象
 ObjClosure *newObjClosure(VM *vm, ObjFn *objFn) {
     ObjClosure *objClosure = ALLOCATE_EXTRA(vm, ObjClosure, sizeof(ObjUpvalue *) * objFn->upvalueNum);
     initObjHeader(vm, &objClosure->objHeader, OT_CLOSURE, vm->fnClass);
     objClosure->fn = objFn;
-    //use null to fill the upvalue array, avoid trigger the GC.
+    //使用null值来预先填充upvalue数组，避免提前触发GC
     uint32_t idx = 0;
     while (idx < objFn->upvalueNum) {
         objClosure->upvalues[idx++] = null;

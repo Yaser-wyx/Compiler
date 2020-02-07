@@ -62,27 +62,28 @@ typedef enum {
 #define VALUE_IS_0(value) (VALUE_IS_NUM(value) && (value).num == 0)
 
 
-//primitive method pointer
+//定义一个Primitive类型，该类型是一个函数指针
 typedef bool (*Primitive)(VM *vm, Value *args);
 
 typedef struct {
-    MethodType type;
+    MethodType type;//取值为MT_PRIMITIVE或MT_SCRIPT
     union {
-        //valid when type is MT_PRIMITIVE
-        //point to the c implementation which associated with the script method
+        //当type为MT_PRIMITIVE时，primFn有效
+        //primFn指向一个用C实现的原生方法
         Primitive primFn;
-        //valid when type is MT_SCRIPT
+        //当type为MT_SCRIPT时，obj有效
+        //obj指向编译后的ObjClosure或objFn
         ObjClosure *obj;
     };
-} Method;
+} Method;//方法结构
 DECLARE_BUFFER_TYPE(Method);
 
 struct class {
-    ObjHeader *objHeader;
-    struct class *superClass;
-    uint32_t fieldNum;
-    MethodBuffer methods;//存储方法体数组
-    ObjString *name;
+    ObjHeader *objHeader;//类的对象头
+    struct class *superClass;//父类
+    uint32_t fieldNum;//属性个数
+    MethodBuffer methods;//存储方法体的数组
+    ObjString *name;//类名
 };
 typedef union {
     uint64_t bits64;
@@ -91,6 +92,10 @@ typedef union {
 } Bits64;
 
 bool valueIsEqual(Value a, Value b);
+
+Class *newRawClass(VM *vm, const char *name, uint32_t fieldNum);
+
+inline Class *getClassOfObj(VM *vm, Value object);
 
 #define CAPACITY_GROW_FACTOR 4
 #define MIN_CAPACITY 64

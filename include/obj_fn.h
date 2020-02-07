@@ -25,7 +25,7 @@ typedef struct {
 #if DEBUG
     FnDebug *debug
 #endif
-} ObjFn;// function object
+} ObjFn;//函数对象
 
 typedef struct upvalue {
     ObjHeader objHeader;

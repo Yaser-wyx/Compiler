@@ -7,6 +7,7 @@
 #include "obj_string.h"
 #include "obj_range.h"
 
+//创建map对象
 ObjMap *newObjMap(VM *vm) {
     ObjMap *objMap = ALLOCATE(vm, ObjMap);
     initObjHeader(vm, &objMap->objHeader, OT_MAP, vm->mapClass);
@@ -58,22 +59,23 @@ static uint32_t hashValue(Value value) {
     }
     return 0;
 }
-
+//添加新的entry，如果key不存在，返回值为true，否则为false
 static bool addEntry(Entry *entries, uint32_t capacity, Value key, Value value) {
-    //calculate slot index
+    //计算要插入的位置索引
     uint32_t index = hashValue(value) % capacity;
 
     while (true) {
         if (entries[index].key.type == VT_UNDEFINED) {
-            //empty slot
+            //该索引位置为空，可以插入
             entries[index].key = key;
             entries[index].value = value;
             return true;
         } else if (valueIsEqual(key, entries[index].key)) {
+            //该所属key值已经存在，则重新将value进行赋值
             entries[index].value = value;
             return false;
         }
-        //relocate slot index
+        //重新计算下一个插入位置的索引
         index = (index + 1) % capacity;
     }
 }
@@ -121,6 +123,7 @@ static Entry *findEntry(ObjMap *objMap, Value key) {
 
 void mapSet(VM *vm, ObjMap *objMap, Value key, Value value) {
     if (objMap->count + 1 > objMap->capacity * MAP_LOAD_PERCENT) {
+        //如果容量不够，则重新分配空间
         uint32_t newCapacity = objMap->capacity * CAPACITY_GROW_FACTOR;
         if (newCapacity < MIN_CAPACITY) {
             newCapacity = MIN_CAPACITY;
@@ -128,6 +131,7 @@ void mapSet(VM *vm, ObjMap *objMap, Value key, Value value) {
         resizeMap(vm, objMap, newCapacity);
     }
     if (addEntry(objMap->entries, objMap->capacity, key, value)) {
+        //如果插入了一个新的entry，则个数加1
         objMap->count++;
     }
 }

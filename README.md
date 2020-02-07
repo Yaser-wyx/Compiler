@@ -1,1 +1,5 @@
-`This project is used to learning compiler.`
+本项目是《自制编程语言 基于C语言》的学习用代码，根据该书，最后将会基于C语言（不依赖任何第三方框架或类库）实现一个脚本语言sparrow。
+
+PS：当前还处于学习阶段，还未完善，所以代码仅供参考。
+
+
