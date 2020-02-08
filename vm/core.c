@@ -9,6 +9,7 @@
 #include "meta_obj.h"
 #include "compiler.h"
 #include "obj_thread.h"
+#include "core.script.inc"
 
 char *rootDir = null;
 #define CORE_MODULE VT_TO_VALUE(VT_NULL)
@@ -178,8 +179,9 @@ static ObjThread *loadModule(VM *vm, Value moduleName, const char *moduleCode) {
     return moduleThread;
 }
 
+//执行模块,目前为空,桩函数
 VMResult executeModule(VM *vm, Value moduleName, const char *moduleCode) {
-    //todo 站桩函数，目前为空
+    ObjThread *objThread = loadModule(vm, moduleName, moduleCode);
     return VM_RESULT_ERROR;
 }
 
@@ -260,4 +262,7 @@ void buildCore(VM *vm) {
     vm->classOfClass->objHeader->class = vm->classOfClass;
     vm->objectClass->objHeader->class = objectMetaClass;
     objectMetaClass->objHeader->class = vm->classOfClass;
+
+    //执行核心模块
+    executeModule(vm, CORE_MODULE, coreModuleCode)
 }

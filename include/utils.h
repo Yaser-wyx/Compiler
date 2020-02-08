@@ -21,6 +21,7 @@ void *memManager(VM *vm, void *ptr, uint32_t oldSize, uint32_t newSize);
 
 #define DEALLOCATE(vmPtr, memPtr) memManager(vmPtr, memPtr, 0, 0)
 
+#define max(a,b) a>b?a:b
 #define len(array) sizeof(array)/sizeof(array[0])
 
 uint32_t ceilToPowerOf2(uint32_t v);

@@ -8,6 +8,7 @@
 #include "common.h"
 #include "vm.h"
 #include "class.h"
+#include "compiler.h"
 
 #define resetCurTokenStart parser->curToken.start = parser->nextCharPtr - 1
 typedef enum {
@@ -100,23 +101,24 @@ typedef enum {
 
 typedef struct {
     TokenType type;
-    const char *start;//the start of token in code
-    uint32_t length;//the length of the token
-    uint32_t lineNo;
-    Value value; //store the token value
+    const char *start;//该Token在代码中的起始位置
+    uint32_t length;//Token的长度
+    uint32_t lineNo;//Token所在的行号
+    Value value; //Token的Value结构表示
 } Token;
 
 struct parser {
-    const char *file;//code file
-    const char *sourceCode;//a pointer to a code buffer
-    const char *nextCharPtr;//a pointer to the next char
+    const char *file;//源代码文件
+    const char *sourceCode;//指向源码的指针
+    const char *nextCharPtr;//指向下一个字符的指针
     char curChar;
-    Token curToken;
-    Token preToken;
-    ObjModule *curModule;//the module which is compiling now.
-    int interpolationExpRightParenNum;//the num of right paren in embedded exception
-    struct parser *parent;//point to a father parser
-    VM *vm;//point to the vm
+    Token curToken;//当前Token
+    Token preToken;//前一个Token
+    ObjModule *curModule;//当前镇在编译的模块
+    CompileUnit *curCompileUnit;//当前编译单元
+    int interpolationExpRightParenNum;//处于内嵌表达式内部，期望的右括号个数
+    struct parser *parent;//指向父parser
+    VM *vm;//当前parser的虚拟机
 };
 #define PEEK_TOKEN(parserPtr) parserPtr->curToken.type
 

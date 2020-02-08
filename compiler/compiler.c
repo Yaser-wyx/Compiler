@@ -6,7 +6,9 @@
 #include "parser.h"
 #include "core.h"
 #include "string.h"
+#include "utils.h"
 
+#define CORE_MODULE null
 #if DEBUG
 #include "debug.h"
 #endif
@@ -23,6 +25,94 @@ struct compileUnit {
     struct compileUnit *enclosingUnit;//包含此编译单元的编译单元
     Parser *curParser;//当前parser
 };
+
+//定义操作码对栈的影响，从而可以使用操作码来读取opCodeSlotsUsed中的数据
+#define OPCODE_SLOTS(opCode, effect) effect,
+static const int opCodeSlotsUsed[] = {
+#include "opcode.inc"
+};
+#undef OPCODE_SLOTS
+
+//初始化CompileUnit
+static void initCompileUnit(Parser *parser, CompileUnit *compileUnit, CompileUnit *enclosingUnit, bool isMethod) {
+    parser->curCompileUnit = compileUnit;
+    compileUnit->curParser = parser;
+    compileUnit->enclosingClassBK = null;
+    compileUnit->curLoop = null;
+    compileUnit->enclosingUnit = enclosingUnit;
+
+    if (enclosingUnit == null) {
+        //如果外层没有单元，则表明当前属于模块作用域
+        compileUnit->scopeDepth = -1;//模块作用域设为-1
+        compileUnit->localVarNum = 0;//模块作用域内没有局部变量
+    } else {
+        //如果有外层单元，则当前作用域属于局部作用域
+        if (isMethod) {
+            //如果是类中的方法
+            //则将当前编译单元的首个局部变量设置为"this"
+            compileUnit->localVars[0].name = "this";
+            compileUnit->localVars[0].length = 4;
+        } else {
+            //判断为普通函数
+            //与方法统一格式
+            compileUnit->localVars[0].name = null;
+            compileUnit->localVars[0].length = 0;
+        }
+        //第0个局部变量的特殊性使其作用域为模块级别
+        compileUnit->localVars[0].scopeDepth = -1;
+        compileUnit->localVars->isUpvalue = false;
+        compileUnit->localVarNum = 1; // localVars[0]被分配
+        // 对于函数和方法来说,初始作用域是局部作用域
+        // 0表示局部作用域的最外层
+        compileUnit->scopeDepth = 0;
+    }
+    //局部变量保存在栈中，所以初始化的时候，栈中已使用的slot数量等于局部变量的个数
+    compileUnit->stackSlotNum = compileUnit->localVarNum;
+    compileUnit->fn = newObjFn(compileUnit->curParser->vm, compileUnit->curParser->curModule, compileUnit->localVarNum);
+}
+
+//想函数的指令流中写入一个字节的数据，并返回其索引
+static int writeByte(CompileUnit *compileUnit, int byte) {
+#if DEBUG
+    IntBufferAdd(compileUnit->curParser->vm,&compileUnit->fn->debug->lineNo,compileUnit->curParser->preToken.lineNo);
+#endif
+    ByteBufferAdd(compileUnit->curParser->vm, &compileUnit->fn->instrStream, (uint8_t) byte);
+    return compileUnit->fn->instrStream.count - 1;
+}
+
+//写入操作码
+static void writeOpCode(CompileUnit *compileUnit, OpCode opCode) {
+    writeByte(compileUnit, opCode);
+    //累计需要的运行时栈空间大小
+    compileUnit->stackSlotNum += opCodeSlotsUsed[opCode];
+    //计算栈空间使用的峰值
+    compileUnit->fn->maxStackSlotUsedNum = max(compileUnit->fn->maxStackSlotUsedNum, compileUnit->stackSlotNum);
+}
+
+//写入1个字节的操作数
+static int writeByteOperand(CompileUnit *compileUnit, int operand) {
+    return writeByte(compileUnit, operand);
+}
+
+//写入2个字节的操作数
+static int writeShortOperand(CompileUnit *compileUnit, int operand) {
+    //使用大端法，先写入高八位数据
+    writeByteOperand(compileUnit, (operand >> 8) & 0xff);
+    //再写入低八位
+    writeByteOperand(compileUnit, operand & 0xff);
+}
+
+//写入操作数为1字节的指令
+static int writeOpCodeByteOperand(CompileUnit *compileUnit, OpCode opCode, int operand) {
+    writeOpCode(compileUnit, opCode);
+    return writeByteOperand(compileUnit, operand);
+}
+
+//写入操作数为2字节的指令
+static int writeOpCodeShortOperand(CompileUnit *compileUnit, OpCode opCode, int operand) {
+    writeOpCode(compileUnit, opCode);
+    return writeShortOperand(compileUnit, operand);
+}
 
 int defineModuleVar(VM *vm, ObjModule *objModule, const char *name, uint32_t length, Value value) {
     //注：此处的value不是变量的值，只是用于编译阶段占位使用，value取值为null或行号（用于引用变量，却未定义的情况）,变量具体的值会在虚拟机运行阶段确定
@@ -54,8 +144,37 @@ int defineModuleVar(VM *vm, ObjModule *objModule, const char *name, uint32_t len
     return symbolIndex;
 }
 
+
+//编译程序的入口
+static void compileProgram(CompileUnit *compileUnit) { ; }
+
 //编译模块
-ObjFn* compileModule(VM* vm, ObjModule* objModule, const char* moduleCode){
-    ;
-    //TODO 站桩用，待填充
+ObjFn *compileModule(VM *vm, ObjModule *objModule, const char *moduleCode) {
+    //为新的模块创建单独的词法分析器
+    Parser parser;
+    //初始化parser
+    parser.parent = vm->curParser;
+    vm->curParser = &parser;
+    if (objModule->name == CORE_MODULE) {
+        //如果是核心模块,使用core.script.inc初始化
+        initParser(vm, &parser, "core.script.inc", moduleCode, objModule);
+    } else {
+        //一般模块
+        initParser(vm, &parser, (const char *) objModule->name->value.start, moduleCode, objModule);
+    }
+    //创建编译单元并初始化
+    CompileUnit compileUnit;
+    initCompileUnit(&parser, &compileUnit, null, false);
+    //记录模块变量的数量
+    uint32_t moduleVarNum = objModule->moduleVarValue.count;
+    //由于初始parser的curToken.type为UNKNOW，所以手动使其指向第一个合法Token
+    getNextToken(&parser);
+    while(!matchToken(&parser,TOKEN_EOF)){
+        compileProgram(&compileUnit);
+    }
+    //后面还有很多要做的,临时放一句话在这提醒.
+    //不过目前上面是死循环,本句无法执行。
+    printf("There is something to do...\n");
+    exit(0);
 }
+
