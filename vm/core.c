@@ -214,6 +214,15 @@ static Class *defineClass(VM *vm, ObjModule *objModule, const char *name) {
     return class;
 }
 
+//确保符号已经添加到了符号表中
+int ensureSymbolExist(VM *vm, SymbolTable *table, const char *symbol, uint32_t length) {
+    int symbolIndex = getIndexFromSymbolTable(table, symbol, length);
+    if (symbolIndex == -1) {
+        return addSymbol(vm, table, symbol, length);
+    }
+    return symbolIndex;
+}
+
 //绑定方法到类中
 void bindMethod(VM *vm, Class *class, __uint32_t index, Method method) {
     if (index >= class->methods.count) {
@@ -264,5 +273,5 @@ void buildCore(VM *vm) {
     objectMetaClass->objHeader->class = vm->classOfClass;
 
     //执行核心模块
-    executeModule(vm, CORE_MODULE, coreModuleCode)
+    executeModule(vm, CORE_MODULE, coreModuleCode);
 }

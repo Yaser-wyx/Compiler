@@ -19,5 +19,5 @@ int getIndexFromSymbolTable(SymbolTable* table, const char* symbol, uint32_t len
 int addSymbol(VM* vm, SymbolTable* table, const char* symbol, uint32_t length);
 void bindMethod(VM* vm, Class* class, uint32_t index, Method method);
 void bindSuperClass(VM* vm, Class* subClass, Class* superClass);
-
+int ensureSymbolExist(VM* vm, SymbolTable* table, const char* symbol, uint32_t length);
 #endif //COMPLIER_CORE_H

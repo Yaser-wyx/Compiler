@@ -19,7 +19,6 @@
 #define MAX_SIGN_LEN MAX_METHOD_NAME_LEN + MAX_ARG_NUM * 2 + 1
 
 #define MAX_FIELD_NUM 128 //域中属性的最大数量
-
 typedef struct {
     //表示当前upvalue是否为外层函数的局部变量
     bool isEnclosingLocalVar;
@@ -69,9 +68,12 @@ typedef struct {
     Signature *signature;      //当前正在编译的签名
 } ClassBookKeep;    //用于记录类编译时的信息
 
+typedef localVar LocalVar ;
+
 typedef struct compileUnit CompileUnit;
 
 int defineModuleVar(VM *vm, ObjModule *objModule, const char *name, uint32_t length, Value value);
 
-ObjFn* compileModule(VM* vm, ObjModule* objModule, const char* moduleCode);
+ObjFn *compileModule(VM *vm, ObjModule *objModule, const char *moduleCode);
+
 #endif //TEMP_COMPILER_H
