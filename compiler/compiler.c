@@ -16,12 +16,12 @@
 struct compileUnit {
     ObjFn *fn;//所编译的函数
     localVar localVars[MAX_LOCAL_VAR_NUM];//作用域中的局部变量名字
-    uint32_t localVarNum;//已分配的局部变量个数，同时记录下一个可用与存储局部变量的索引
+    uint32_t localVarNum;//已分配的局部变量个数，同时记录下一个可用于存储局部变量的索引
     Upvalue upvalues[MAX_UPVALUE_NUM];//本层函数引用的upvalue
     int scopeDepth;//当前编译的代码所处的作用域，-1表示模块作用域，0表示没有嵌套，即最外层，1及以上表示对应的嵌套层
     uint32_t stackSlotNum;//统计编译单元内对栈的影响
     Loop *curLoop;//当前正在编译的循环层
-    ClassBookKeep *enclosingClassBK;//正在编译的类的编译信息
+    ClassBookKeep *enclosingClassBK;//如果不为null，表示该编译单元指向一个class
     struct compileUnit *enclosingUnit;//包含此编译单元的编译单元，也就是父编译单元
     Parser *curParser;//当前parser
 };
@@ -171,7 +171,7 @@ static int writeOpCodeByteOperand(CompileUnit *compileUnit, OpCode opCode, int o
     return writeByteOperand(compileUnit, operand);
 }
 
-//写入操作数为2字节的指令
+//向指定编译单元写入操作数为2字节的指令
 static void writeOpCodeShortOperand(CompileUnit *compileUnit, OpCode opCode, int operand) {
     writeOpCode(compileUnit, opCode);
     writeShortOperand(compileUnit, operand);
@@ -529,6 +529,206 @@ static void processParaList(CompileUnit *compileUnit, Signature *signature) {
     } while (matchToken(compileUnit->curParser, TOKEN_COMMA));
 }
 
+//尝试编译setter
+static bool trySetter(CompileUnit *compileUnit, Signature *signature) {
+    //进入时，preToken为方法名
+    if (!matchToken(compileUnit->curParser, TOKEN_ASSIGN)) {
+        //匹配不成功，当前不是setter方法
+        return false;
+    }
+    //判断签名类型
+    if (signature->type == SIGN_SUBSCRIPT) {
+        signature->type = SIGN_SUBSCRIPT_SETTER;
+    } else {
+        signature->type = SIGN_SETTER;
+    }
+    //消耗左括号
+    consumeCurToken(compileUnit->curParser, TOKEN_LEFT_PAREN, "excepted '(' after '='!");
+    //消耗形参
+    consumeCurToken(compileUnit->curParser, TOKEN_ID, "excepted id after '('");
+    //定义形参
+    declareVariable(compileUnit, compileUnit->curParser->preToken.start, compileUnit->curParser->preToken.length);
+    //消耗右括号
+    consumeCurToken(compileUnit->curParser, TOKEN_RIGHT_PAREN, "excepted ')' after argument list!");
+    signature->argNum++;
+    return true;
+}
+
+//方法标识符签名函数
+static void idMethodSignature(CompileUnit *compileUnit, Signature *signature) {
+    //进入时，preToken为方法标识符
+    signature->type = SIGN_GETTER;//默认是getter方法
+    Token *preToken = &compileUnit->curParser->preToken;
+    Parser *curParser = compileUnit->curParser;
+    if (preToken->length == 3 && memcmp(preToken->start, "new", 3)) {
+        //当前方法是构造方法
+        if (matchToken(curParser, TOKEN_ASSIGN)) {
+            //不能是setter
+            COMPILE_ERROR(curParser, "constructor shouldn't be setter!");
+            return;
+        }
+        if (!matchToken(curParser, TOKEN_LEFT_PAREN)) {
+            //不是method形式
+            COMPILE_ERROR(curParser, "constructor must be method!");
+            return;
+        }
+        signature->type = SIGN_CONSTRUCT;//设置为构造方法
+        if (matchToken(curParser, TOKEN_RIGHT_PAREN)) {
+            //判断是否有形参列表，如果没有则直接返回
+            return;
+        }
+    } else {
+        //不是构造方法
+        if (trySetter(compileUnit, signature)) {
+            //判断是否是setter方法，如果是的话，在trySetter中设置并直接返回
+            return;
+        }
+        if (!matchToken(curParser, TOKEN_LEFT_PAREN)) {
+            //说明是getter
+            return;
+        } else {
+            //不是getter，也不是method，而是普通方法
+            signature->type = SIGN_METHOD;
+            if (matchToken(curParser, TOKEN_RIGHT_PAREN)) {
+                //如果没有形参列表,直接返回
+                return;
+            }
+        }
+    }
+    //处理形参列表
+    processParaList(compileUnit, signature);
+    //消耗右括号
+    consumeCurToken(curParser, TOKEN_RIGHT_PAREN, "excepted ')' after argument list!");
+}
+
+//从编译单元中查找局部变量
+static int findLocal(CompileUnit *compileUnit, const char *name, size_t length) {
+    LocalVar *localVars = compileUnit->localVars;
+    //局部变量的内层会覆盖掉外层变量，所以要从内而外的查找
+    for (int index = compileUnit->localVarNum - 1; index >= 0; --index) {
+        //遍历局部变量
+        if (localVars[index].length == length && strIsSame(localVars[index].name, name, length)) {
+            //找到了
+            return index;
+        }
+    }
+    return -1;
+}
+
+//添加upvalue到编译单元中，如果已经存在，则直接返回索引
+static int addUpvalue(CompileUnit *compileUnit, bool isEnclosingLocalVar, uint32_t index) {
+    //isEnclosingLocalVar表示，该upvalue是否为直接外层的编译单元（父编译单元）的局部变量。
+    //如果isEnclosingLocalVar=true，则index表示直接外层中的局部变量索引，否则是直接外层的upvalue索引
+    Upvalue *upvalues = compileUnit->upvalues;
+    for (int idx = 0; idx < compileUnit->fn->upvalueNum; ++idx) {
+        if (upvalues[idx].isEnclosingLocalVar == isEnclosingLocalVar && upvalues[idx].index == index) {
+            return idx;
+        }
+    }
+    //如果不存在，则添加
+    upvalues[compileUnit->fn->upvalueNum].index = index;
+    upvalues[compileUnit->fn->upvalueNum++].isEnclosingLocalVar = isEnclosingLocalVar;
+    return compileUnit->fn->upvalueNum - 1;//返回最后一个索引
+}
+
+//在当前compileUnit的父compileUnit中，查找name指代的upvalue，然后添加到cu->upvalues，并返回其索引，未找到则返回-1
+static int findUpvalue(CompileUnit *compileUnit, const char *name, size_t length) {
+    if (compileUnit->enclosingUnit == null) {
+        //递归终止条件，如果已经没有直接外层编译单元，则表示没有找到
+        return -1;
+    }
+    if (!strchr(name, ' ') && compileUnit->enclosingUnit->enclosingClassBK != null) {
+        /** @note 此处较难理解：
+         * !strchr(name, ' '):表示要查找的upvalue不是静态域中的变量
+         * compileUnit->enclosingUnit->enclosingClassBK != null:表示当前处于类下面一个方法的编译单元中
+         *因为当前直接外层的编译单元已经是模块编译单元了，里面的变量均为静态域变量，
+         * 而我们要查找的不是静态域变量，所以不再需要继续往上查找了，即未找到*/
+        return -1;
+    }
+    //在当前编译单元的直接外层编译单元查找局部变量
+    int directOuterLocalIndex = findLocal(compileUnit->enclosingUnit, name, length);
+    if (directOuterLocalIndex != -1) {
+        //如果在直接外层的局部变量中找到了
+        compileUnit->enclosingUnit->localVars[directOuterLocalIndex].isUpvalue = true;//将直接外层的局部变量设置为upvalue
+        return addUpvalue(compileUnit, true, (uint32_t) directOuterLocalIndex);
+    }
+    //在当前编译单元的直接外层编译单元查找upvalue变量
+    int directOuterUpvalueIndex = findUpvalue(compileUnit->enclosingUnit, name, length);
+    if (directOuterUpvalueIndex != -1) {
+        //如果直接外层的upvalue中找到了
+        return addUpvalue(compileUnit, false, (uint32_t) directOuterUpvalueIndex);
+    }
+    return -1;
+}
+
+//从局部变量或upvalue中查找符号
+static Variable getVarFromLocalOrUpvalue(CompileUnit *compileUnit, const char *name, uint32_t length) {
+    Variable variable = {VAR_SCOPE_INVALID, -1};//默认为非法变量
+    int index = findLocal(compileUnit, name, length);
+    if (index != -1) {
+        variable.index = index;
+        variable.scopeType = VAR_SCOPE_LOCAL;
+        return variable;
+    }
+    index = findUpvalue(compileUnit, name, length);
+    if (index != -1) {
+        variable.index = index;
+        variable.scopeType = VAR_SCOPE_UPVALUE;
+    }
+    return variable;
+}
+
+//生成把变量加载到栈中的指令
+static void emitLoadVariable(CompileUnit *compileUnit, Variable variable) {
+    switch (variable.scopeType) {
+        case VAR_SCOPE_LOCAL:
+            writeOpCodeByteOperand(compileUnit, OPCODE_LOAD_LOCAL_VAR, variable.index);
+            break;
+        case VAR_SCOPE_UPVALUE:
+            writeOpCodeByteOperand(compileUnit, OPCODE_LOAD_UPVALUE, variable.index);
+            break;
+        case VAR_SCOPE_MODULE:
+            writeOpCodeShortOperand(compileUnit, OPCODE_LOAD_MODULE_VAR, variable.index);
+            break;
+        default:
+            NOT_REACHED()
+    }
+}
+
+//为变量生成存储指令
+static void emitShortVariable(CompileUnit *compileUnit, Variable variable) {
+    switch (variable.scopeType) {
+        case VAR_SCOPE_LOCAL:
+            writeOpCodeByteOperand(compileUnit, OPCODE_STORE_LOCAL_VAR, variable.index);
+            break;
+        case VAR_SCOPE_UPVALUE:
+            writeOpCodeByteOperand(compileUnit, OPCODE_STORE_UPVALUE, variable.index);
+            break;
+        case VAR_SCOPE_MODULE:
+            writeOpCodeShortOperand(compileUnit, OPCODE_STORE_MODULE_VAR, variable.index);
+            break;
+        default:
+            NOT_REACHED()
+    }
+}
+
+//生成加载或存储变量的指令
+static void emitLoadOrStoreVariable(CompileUnit *compileUnit, bool canAssign, Variable variable) {
+    if (canAssign && matchToken(compileUnit->curParser, TOKEN_ASSIGN)) {
+        //如果可以赋值，并且下一个符号就是赋值号
+        expression(compileUnit, BP_LOWEST);
+        emitShortVariable(compileUnit, variable);
+    } else {
+        emitLoadVariable(compileUnit, variable);
+    }
+}
+
+static void emitLoadThis(CompileUnit *compileUnit) {
+    Variable varThis = getVarFromLocalOrUpvalue(compileUnit, "this", 4);//从局部变量或upvalue中获取this变量
+    ASSERT(varThis.scopeType != VAR_SCOPE_INVALID, "get variable of 'this' failed!");
+    emitLoadVariable(compileUnit, varThis);//加载该变量
+}
+
 
 //编译程序的入口
 static void compileProgram(CompileUnit *compileUnit) { ; }
@@ -563,3 +763,63 @@ ObjFn *compileModule(VM *vm, ObjModule *objModule, const char *moduleCode) {
     exit(0);
 }
 
+//编译代码块
+static void compileBlock(CompileUnit *compileUnit) {
+    //进入本函数前已经读取了'('
+    Parser *curParser = compileUnit->curParser;
+    while (!matchToken(curParser, TOKEN_RIGHT_BRACE)) {
+        //如果没有匹配到右大括号
+        if (curParser->curToken.type == TOKEN_EOF) {
+            //如果已经到达文件末尾
+            COMPILE_ERROR(curParser, "expect '}' at the end of block!");
+        }
+        compileProgram(compileUnit);
+    }
+}
+
+//编译函数或方法体
+static void compileBody(CompileUnit *compileUnit, bool isConstruct) {
+    //进入本函数前已经读取了'('
+    compileBlock(compileUnit);
+    if (isConstruct) {
+        //如果该方法是构造函数，则需要将this对象从当前方法的运行时栈中加载出来
+        writeOpCodeByteOperand(compileUnit, OPCODE_LOAD_LOCAL_VAR, 0);
+    } else {
+        //如果不是，则压入null值来占位
+        writeOpCode(compileUnit, OPCODE_PUSH_NULL);
+    }
+    //返回编译结果
+    writeOpCode(compileUnit, OPCODE_RETURN);
+}
+
+#if DEBUG
+static ObjFn* endCompileUnit(CompileUnit*compileUnit,const char*debugName,size_t debugNameLen){
+    bindDebugFnName(compileUnit->curParser->vm,compileUnit->fn->debug,debugName,debugNameLen);
+#else
+
+static ObjFn *endCompileUnit(CompileUnit *compileUnit) {
+#endif
+    //表示该编译单元工作结束
+    writeOpCode(compileUnit, OPCODE_END);
+    if (compileUnit->enclosingUnit != null) {
+        //如果有父编译单元，则将当前编译单元的函数指令流作为父编译单元的常量
+        uint32_t index = addConstant(compileUnit->enclosingUnit, OBJ_TO_VALUE(compileUnit->fn));
+        //内层函数以闭包形式在外层函数中存在,
+        //在外层函数的指令流中添加"为当前内层函数创建闭包的指令"
+        writeOpCodeShortOperand(compileUnit->enclosingUnit, OPCODE_CREATE_CLOSURE, index);
+        //为vm在创建闭包时判断引用的是局部变量还是upvalue,
+        //下面为每个upvalue生成参数.
+        for (int idx = 0; idx < compileUnit->fn->upvalueNum; ++idx) {
+            writeByte(compileUnit->enclosingUnit, compileUnit->upvalues[index].isEnclosingLocalVar);
+            writeByte(compileUnit->enclosingUnit, compileUnit->upvalues[index].index);
+        }
+    }
+    //将当前词法分析器的编译单元调为当前编译单元的父单元
+    compileUnit->curParser->curCompileUnit = compileUnit->enclosingUnit;
+    return compileUnit->fn;
+}
+
+//生成getter或一般method调用指令
+static void emitGetterMethodCall(CompileUnit *compileUnit, Signature *signature, OpCode opCode) {
+
+}

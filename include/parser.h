@@ -114,7 +114,7 @@ struct parser {
     char curChar;
     Token curToken;//当前Token
     Token preToken;//前一个Token
-    ObjModule *curModule;//当前镇在编译的模块
+    ObjModule *curModule;//当前正在编译的模块
     CompileUnit *curCompileUnit;//当前编译单元
     int interpolationExpRightParenNum;//处于内嵌表达式内部，期望的右括号个数
     struct parser *parent;//指向父parser

@@ -21,7 +21,7 @@ void *memManager(VM *vm, void *ptr, uint32_t oldSize, uint32_t newSize);
 
 #define DEALLOCATE(vmPtr, memPtr) memManager(vmPtr, memPtr, 0, 0)
 
-#define max(a,b) a>b?a:b
+#define max(a, b) a>b?a:b
 #define len(array) sizeof(array)/sizeof(array[0])
 
 uint32_t ceilToPowerOf2(uint32_t v);
@@ -126,6 +126,7 @@ void symbolTableClear(VM *, SymbolTable *buffer);
 #define RUN_ERROR(...)\
    errorReport(NULL, ERROR_RUNTIME, __VA_ARGS__)
 
+#define strIsSame(str1, str2, length) memcmp(str1,str2,length)==0
 #define DEFAULT_BUfFER_SIZE 512
 
 #endif

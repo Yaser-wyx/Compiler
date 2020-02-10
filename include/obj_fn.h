@@ -20,7 +20,7 @@ typedef struct {
     ObjModule *module;//the module for function
 
     uint32_t maxStackSlotUsedNum;//max space for stack
-    uint32_t upvalueNum;//the num of upvalues
+    uint32_t upvalueNum;//本函数所涵盖的upvalue数量
     uint8_t argNum;//the num of arguments.
 #if DEBUG
     FnDebug *debug
