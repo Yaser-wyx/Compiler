@@ -48,7 +48,7 @@ typedef struct {
     SignatureType type;//签名类型
     const char *name;//签名
     uint32_t length;//签名的长度
-    uint32_t argNum;//签名的个数
+    uint32_t argNum;//签名方法参数的个数
 } Signature;//签名结构，方法声明的字符串形式
 
 typedef struct loop {

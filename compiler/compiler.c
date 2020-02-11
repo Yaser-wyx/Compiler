@@ -134,13 +134,14 @@ static void initCompileUnit(Parser *parser, CompileUnit *compileUnit, CompileUni
     compileUnit->fn = newObjFn(compileUnit->curParser->vm, compileUnit->curParser->curModule, compileUnit->localVarNum);
 }
 
-//想函数的指令流中写入一个字节的数据，并返回其索引
+//向函数的指令流中写入一个字节的数据，并返回其索引
 static int writeByte(CompileUnit *compileUnit, int byte) {
 #if DEBUG
     IntBufferAdd(compileUnit->curParser->vm,&compileUnit->fn->debug->lineNo,compileUnit->curParser->preToken.lineNo);
 #endif
+    //向编译单元中的编译函数指令流中写入数据
     ByteBufferAdd(compileUnit->curParser->vm, &compileUnit->fn->instrStream, (uint8_t) byte);
-    return compileUnit->fn->instrStream.count - 1;
+    return compileUnit->fn->instrStream.count - 1;//返回索引
 }
 
 //写入操作码，注意，操作码紧紧只是枚举类型数据，范围从0~255，不是具体的字符串
@@ -821,5 +822,68 @@ static ObjFn *endCompileUnit(CompileUnit *compileUnit) {
 
 //生成getter或一般method调用指令
 static void emitGetterMethodCall(CompileUnit *compileUnit, Signature *signature, OpCode opCode) {
+    //signature是待调用方法的签名，不完整，需要继续识别
+    //新建一个signature
+    Signature newSign;
+    newSign.type = SIGN_GETTER;//默认是getter方法
+    newSign.name = signature->name;
+    newSign.length = signature->length;
+    newSign.argNum = 0;
+    Parser *curParser = compileUnit->curParser;
+    if (matchToken(curParser, TOKEN_LEFT_PAREN)) {
+        //匹配到左小括号
+        newSign.type = SIGN_METHOD;
+        if (!matchToken(curParser, TOKEN_RIGHT_PAREN)) {
+            //没有匹配到右括号，说明后面有函数调用的实参列表
+            processArgList(compileUnit, &newSign);//处理实参列表
+            consumeCurToken(curParser, TOKEN_RIGHT_PAREN, "excepted ')' after argument!");//消耗掉右小括号
+        }
+    }
+    if (matchToken(curParser, TOKEN_LEFT_BRACE)) {
+        //匹配到左大括号，说明是method的块参数
+        newSign.type = SIGN_METHOD;
+        newSign.argNum++;
+        CompileUnit newCompileUnit;//构造块参数代码块的编译单元
+        initCompileUnit(curParser, &newCompileUnit, compileUnit, false);//初始化
+        Signature signTmp = {SIGN_METHOD, "", 0, 0};//构造块参数中代码块的签名
+        if (matchToken(curParser, TOKEN_BIT_OR)) {
+            //匹配到块参数的参数列表
+            processArgList(&newCompileUnit, &signTmp);
+            consumeCurToken(curParser, TOKEN_BIT_OR, "excepted '|' after argument list which in block argument");
+        }
+        newCompileUnit.fn->argNum = signTmp.argNum;//设置参数个数
+        compileBody(&newCompileUnit, false);//编译函数体，将指令流写入到块参数的函数的指令单元fn中
+#if DEBUG
+        char fnName[MAX_SIGN_LEN + 10] = {"\0"};
+        uint32_t len = sign2String(&signTmp, fnName);
+        memmove(fnName + len, " block arg", 10);
+        endCompileUnit(&newCompileUnit,fnName,len+10);
+#else
+        endCompileUnit(&newCompileUnit);
+#endif
+    }
+    //判断该函数是否为构造函数
+    if (signature->type == SIGN_CONSTRUCT) {
+        //如果是构造函数的话，一定是函数调用，也就是newSign的type为method
+        if (newSign.type != SIGN_METHOD) {
+            COMPILE_ERROR(curParser, "the form of super call is super() or super(arguments)");
+        }
+        newSign.type = SIGN_CONSTRUCT;//设置签名类型为构造函数
+    }
+    //被调用方法的签名更新完成，生成调用指令
+    emitCallBySignature(compileUnit, &newSign, opCode);
+}
 
+static void emitMethodCall(CompileUnit *compileUnit, const char *name, size_t length, bool canAssign, OpCode opCode) {
+    Signature signature = {SIGN_GETTER, name, length, 0};
+    Parser *parser = compileUnit->curParser;
+    if (matchToken(parser, TOKEN_ASSIGN) && canAssign) {
+        //如果是setter
+        signature.type = SIGN_SETTER;
+        signature.argNum = 1;//setter参数只有一个
+        expression(compileUnit, BP_LOWEST);//载入实参
+        emitCallBySignature(compileUnit, &signature, opCode);
+    } else {
+        emitGetterMethodCall(compileUnit, &signature, opCode);
+    }
 }
